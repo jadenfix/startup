@@ -30,3 +30,34 @@ def test_demand_uses_hourly_counts_instead_of_order_identifiers():
         {"order_id": 2000, "order_time": "2026-10-12T14:00:00"},
     ])
     assert result["y"].tolist() == [2, 0, 1]
+
+
+def test_http_order_assignment_and_pricing_workflow(monkeypatch):
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from db.models import Base, Customer, Restaurant, Driver, Order
+    from api import api_routes
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session = sessionmaker(bind=engine)()
+    session.add_all([
+        Customer(name="C", lat=37.0, lng=-122.0, region="A"),
+        Restaurant(name="R", lat=37.1, lng=-122.1, region="A"),
+        Driver(name="D", lat=37.11, lng=-122.11, region="A", is_available=True),
+    ])
+    session.commit()
+    monkeypatch.setattr(api_routes, "SessionLocal", lambda: session)
+    with api_routes.app.test_client() as client:
+        created = client.post("/orders", json={"customer_id": 1, "restaurant_id": 1})
+        assert created.status_code == 201
+        order_id = created.get_json()["order_id"]
+        assigned = client.get(f"/drivers/assign/{order_id}")
+        assert assigned.status_code == 200
+        assert session.get(Order, order_id).driver_id == assigned.get_json()["driver_id"]
+        assert client.get(f"/drivers/assign/{order_id}").get_json() == assigned.get_json()
+        price = client.post("/pricing", json={"customer_location": [37.0, -122.0], "restaurant_location": [37.1, -122.1]})
+        assert price.status_code == 200
+        assert price.get_json()["delivery_fee"] > 0
+        assert client.get("/drivers/assign/999999").status_code == 404
+    session.close()
+    engine.dispose()
