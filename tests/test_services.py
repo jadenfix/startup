@@ -8,8 +8,7 @@ from services.order_management import create_order
 from services.driver_matching import assign_driver
 from services.pricing import calculate_delivery_fee
 from services.routing import get_optimized_route
-from services.demand_prediction import prepocess_data,
-train_prophet_model, predict_demand
+from services.demand_prediction import preprocess_data, train_prophet_model, predict_demand
 from config.config import config
 
 # Use a test database in memory for testing
@@ -41,6 +40,8 @@ def mock_get_request(*args, **kwargs):
 class TestServices(unittest.TestCase):
     def setUp(self):
          # Set up test data in in-memory test database
+         Base.metadata.drop_all(bind=engine)
+         Base.metadata.create_all(bind=engine)
          self.session = TestingSessionLocal()
 
          customer = Customer(name="Test Customer", lat=37.7749, lng=-122.4194, region='Region_A', address="address 1")
@@ -76,6 +77,8 @@ class TestServices(unittest.TestCase):
        driver = assign_driver(session=self.session, order_id=order.id, restaurant_location=restaurant_location)
        self.assertIsNotNone(driver)
        self.assertFalse(driver.is_available)
+       self.assertEqual(order.driver_id, driver.id)
+       self.assertEqual(assign_driver(self.session, order.id, restaurant_location).id, driver.id)
 
     def test_assign_driver_no_drivers_available(self):
       #set the only driver to false
