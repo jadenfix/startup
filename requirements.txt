@@ -1,0 +1,9 @@
+Flask>=3.0,<4
+SQLAlchemy>=2.0,<3
+geopy>=2.4,<3
+python-dotenv>=1.0,<2
+requests>=2.31,<3
+cachetools>=5.0,<8
+pandas>=2.0,<3
+prophet>=1.1,<2
+pytest>=8,<9

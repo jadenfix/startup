@@ -5,7 +5,7 @@ from services.driver_matching import assign_driver
 from services.pricing import calculate_delivery_fee
 from db.connection import SessionLocal
 from config.config import config
-from db.models import Restaurant, Customer
+from db.models import Restaurant, Customer, Order
 import json
 
 app = Flask(__name__)
