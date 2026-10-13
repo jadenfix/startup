@@ -1,88 +1,52 @@
-# `services/demand_prediction.py`
-
-import pandas as pd
-from prophet import Prophet
+"""Forecast hourly order counts; Prophet is needed only when fitting."""
 import pickle
-import os
-import logging
+from pathlib import Path
+import pandas as pd
 
-MODEL_PATH = "./demand_model.pkl"  # Path to store the trained model
+MODEL_PATH = "./demand_model.pkl"
 
-logger = logging.getLogger("backend_logger")
-
-def train_prophet_model(df):
-    try:
-        model = Prophet(
-               yearly_seasonality=True,
-            weekly_seasonality=True,
-            daily_seasonality=True
-             )
-        model.fit(df)
-        save_model(model) # persist the model once trained.
-        return model
-    except Exception as e:
-        logger.error(f"Error during prophet model training {e}")
-        return None
-
-def save_model(model):
-     try:
-       with open(MODEL_PATH, "wb") as f:
-         pickle.dump(model, f)
-       logger.info(f'Model saved to: {MODEL_PATH}')
-     except Exception as e:
-         logger.error(f'Error saving model: {e}')
-
-def load_model():
-   try:
-    if os.path.exists(MODEL_PATH):
-       with open(MODEL_PATH, "rb") as f:
-        return pickle.load(f)
-    else:
-      logger.error('No persisted model found, training a new model')
-      return None
-
-   except Exception as e:
-        logger.error(f'Could not load existing model : {e}')
-        return None
-
-
-
-def predict_demand(model, data, future_periods=5):
-    try:
-         future = model.make_future_dataframe(periods=future_periods, freq='h')
-         forecast = model.predict(future)
-         return forecast
-    except Exception as e:
-        logger.error(f"Error during demand prediction {e}")
-        return None
 
 def preprocess_data(order_history):
-    try:
-      df = pd.DataFrame(order_history)
-      df['order_time'] = pd.to_datetime(df['order_time'])
-      df = (df.set_index('order_time').resample('h').size()
-            .rename('y').rename_axis('ds').reset_index())
-      return df
-    except KeyError as e:
-      logger.error(f"KeyError preprocessing the data: {e}")
-      return None
-    except Exception as e:
-      logger.error(f"Error when pre-processing data: {e}")
-      return None
+    if not order_history:
+        return pd.DataFrame(columns=["ds", "y"])
+    timestamps = pd.to_datetime(pd.DataFrame(order_history)["order_time"], utc=True)
+    counts = timestamps.dt.floor("h").value_counts().sort_index()
+    hours = pd.date_range(counts.index.min(), counts.index.max(), freq="h")
+    counts = counts.reindex(hours, fill_value=0)
+    return pd.DataFrame({"ds": counts.index.tz_localize(None), "y": counts.to_numpy()})
 
-# You can use this method if you have no saved models, or if you wish to retrain periodically.
+
+def train_prophet_model(df):
+    from prophet import Prophet
+    if len(df) < 2:
+        raise ValueError("At least two hourly observations are required")
+    model = Prophet(yearly_seasonality=False, weekly_seasonality=False, daily_seasonality=False)
+    model.fit(df)
+    save_model(model)
+    return model
+
+
+def save_model(model):
+    with Path(MODEL_PATH).open("wb") as file:
+        pickle.dump(model, file)
+
+
+def load_model():
+    path = Path(MODEL_PATH)
+    if not path.exists():
+        return None
+    # Only load model files produced by this app from a trusted directory.
+    with path.open("rb") as file:
+        return pickle.load(file)
+
+
+def predict_demand(model, data=None, future_periods=5):
+    if future_periods < 0:
+        raise ValueError("future_periods must be non-negative")
+    return model.predict(model.make_future_dataframe(periods=future_periods, freq="h"))
+
+
 def predict_demand_from_data(order_history, future_periods=5):
-     df = preprocess_data(order_history)
-     if df is not None:
-          model = load_model()
-          if model is None:
-            model = train_prophet_model(df)
-          if model is not None:
-             forecast = predict_demand(model, df, future_periods)
-             return forecast
-          else:
-            logger.error('Could not train model or load persisted model')
-            return None
-     else:
-         logger.error('Could not preprocess data')
-         return None
+    data = preprocess_data(order_history)
+    model = load_model() or train_prophet_model(data)
+    return predict_demand(model, data, future_periods)
