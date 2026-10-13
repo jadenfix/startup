@@ -9,7 +9,7 @@ DATABASE_URL = config.DATABASE_URL
 
 engine = create_engine(DATABASE_URL)
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, expire_on_commit=False, bind=engine)
 
 def init_db():
     Base.metadata.create_all(bind=engine)

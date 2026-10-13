@@ -46,8 +46,8 @@ def test_http_order_assignment_and_pricing_workflow(monkeypatch):
         Driver(name="D", lat=37.11, lng=-122.11, region="A", is_available=True),
     ])
     session.commit()
-    monkeypatch.setattr(api_routes, "SessionLocal", lambda: session)
-    with api_routes.app.test_client() as client:
+    factory = sessionmaker(bind=engine, expire_on_commit=False)
+    with api_routes.create_app(factory).test_client() as client:
         created = client.post("/orders", json={"customer_id": 1, "restaurant_id": 1})
         assert created.status_code == 201
         order_id = created.get_json()["order_id"]

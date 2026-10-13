@@ -1,69 +1,30 @@
-# `services/routing.py`
+"""Bounded Google Directions requests with a five-minute cache."""
 import requests
-import json
-from config.config import config
 from cachetools import TTLCache
-import logging
-import random
-# Use cache to store recent google api requests with 5 min expiration.
+from config.config import config
+
 cache = TTLCache(maxsize=100, ttl=300)
-logger = logging.getLogger("backend_logger")
-# List of fallback routing services
-ROUTING_SERVICES = [
- "https://maps.googleapis.com/maps/api/directions/json",
-#can add other fallbacks here e.g. "https://router.project-osrm.org/route/v1/driving/"
-]
-def get_optimized_route(api_key: str, origin: str, destination: str, waypoints: list = []):
- try:
-     api_key = api_key or config.GOOGLE_MAPS_API_KEY
-     cache_key = (origin, destination, tuple(waypoints))
-
-     if cache_key in cache:
-         logger.info("Route found in cache")
-         return cache[cache_key]
-     else:
-        for service in ROUTING_SERVICES: # Loop through our various APIs
-
-          url = service
-
-          params = {
-              "origin": origin,
-              "destination": destination,
-               "waypoints": "|".join(waypoints),
-               "key": api_key
-               }
-          if service.startswith('https://router.project-osrm.org/route/v1/driving'):
-             params = {} #if we are calling an OSRM route endpoint for example, change this logic for whatever fall back url.
-             url = f"{service}/{origin},{destination}"
-             try:
-                response = requests.get(url) #call the endpoint directly without additional parameters.
-                response.raise_for_status()
-                routes = response.json()["routes"]
-                cache[cache_key] = routes # add routes to cache
-                return routes
-
-             except requests.exceptions.RequestException as e:
-                logger.error(f"Could not call OSRM Service : {e}")
-
-                continue #attempt another route provider.
 
 
-          try:
-               response = requests.get(url, params=params) # call google maps API (or other) as is.
-               response.raise_for_status()
-               routes = response.json()["routes"]
-               cache[cache_key] = routes
-               return routes
-          except requests.exceptions.RequestException as e:
-                logger.error(f"Could not fetch google maps api response : {e}")
-                continue # attempt other routing providers
-
-
-        return {"error": "Could not fetch any routing providers"}#if no response from all routing providers.
-
- except json.JSONDecodeError:
-    return {"error": "Could not decode json body"}
- except KeyError:
-    return {"error":"Could not find key in routing provider response"}
- except Exception as e:
-     return {"error": f"General Exception in get_optimized_route {e}"}
+def get_optimized_route(api_key, origin, destination, waypoints=None):
+    waypoints = waypoints or []
+    api_key = api_key or config.GOOGLE_MAPS_API_KEY
+    if not api_key:
+        return {"error": "GOOGLE_MAPS_API_KEY is required for live routing"}
+    key = (api_key, origin, destination, tuple(waypoints))
+    if key in cache:
+        return cache[key]
+    try:
+        response = requests.get(
+            "https://maps.googleapis.com/maps/api/directions/json",
+            params={"key": api_key, "origin": origin, "destination": destination,
+                    "waypoints": "|".join(waypoints)}, timeout=10)
+        response.raise_for_status()
+        body = response.json()
+        if body.get("status", "OK") != "OK":
+            return {"error": "Routing provider could not find a route"}
+        routes = body["routes"]
+        cache[key] = routes
+        return routes
+    except (requests.RequestException, ValueError, KeyError):
+        return {"error": "Routing provider request failed"}

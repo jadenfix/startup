@@ -1,86 +1,52 @@
-# `services/data_pipeline.py`
-from airflow import DAG
-from airflow.operators.python import PythonOperator
-from datetime import datetime
-from services.process_data import process_order_data
-from services.demand_prediction import predict_demand, preprocess_data, train_prophet_model
-from db.connection import SessionLocal
-from db.models import Order, Customer, Restaurant, Driver
-import logging
+"""Optional Airflow pipeline; failed ingestion/processing/forecasting fails the task."""
 import json
 import os
+from datetime import datetime
+from pathlib import Path
+
+from airflow import DAG
+from airflow.operators.python import PythonOperator
+
+from db.connection import SessionLocal
+from db.models import Customer, Order, Restaurant
+from services.demand_prediction import predict_demand, preprocess_data, train_prophet_model
+from services.process_data import process_order_data
+
+RAW_DATA_PATH = os.getenv("RAW_DATA_PATH", "/tmp/data_pipeline/orders.json")
+PROCESSED_DATA_PATH = os.getenv("PROCESSED_DATA_PATH", "/tmp/data_pipeline/processed_orders.json")
 
 
-RAW_DATA_PATH = "/tmp/data_pipeline/orders.json" # Can modify to be more dynamic
-PROCESSED_DATA_PATH = "/tmp/data_pipeline/processed_orders"
-logger = logging.getLogger('backend_logger')
-
-with DAG(
-  dag_id="data_pipeline",
-  start_date=datetime(2023, 1, 1),
-  schedule_interval="@hourly",
-   catchup=False,
- ) as dag:
-     ingest_data = PythonOperator(
-         task_id="ingest_order_data",
-        python_callable=lambda: load_from_json_data(RAW_DATA_PATH),
-     )
-     process_data = PythonOperator(
-          task_id="process_order_data",
-          python_callable=lambda: process_order_data(RAW_DATA_PATH, PROCESSED_DATA_PATH),
-       )
-     generate_demand_forecast = PythonOperator(
-           task_id="generate_demand_forecast",
-            python_callable=lambda: generate_demand_forecast_data(PROCESSED_DATA_PATH)
-       )
-
-     ingest_data >> process_data >> generate_demand_forecast
 def load_from_json_data(filepath):
+    rows = json.loads(Path(filepath).read_text())
+    if not isinstance(rows, list):
+        raise ValueError("Expected a list of exported orders")
+    with SessionLocal.begin() as session:
+        for row in rows:
+            if session.get(Customer, row["customer_id"]) is None or session.get(Restaurant, row["restaurant_id"]) is None:
+                raise ValueError("Exported order references a missing customer or restaurant")
+            if "id" in row and session.get(Order, row["id"]) is not None:
+                continue  # Retried ingestion must not duplicate an existing exported order.
+            values = dict(row)
+            if isinstance(values.get("order_time"), str):
+                values["order_time"] = datetime.fromisoformat(values["order_time"].replace("Z", "+00:00")).replace(tzinfo=None)
+            session.add(Order(**values))
 
-  try:
-      session = SessionLocal()
-       # Load data from files and insert into DB.
-
-      if not os.path.exists(filepath):
-       raise FileNotFoundError(f"Could not load filepath {filepath}")
-
-      with open(filepath, 'r') as file:
-          orders = json.load(file)
-      for order_data in orders:
-       customer = session.query(Customer).filter(Customer.id == order_data['customer_id']).first()
-       restaurant = session.query(Restaurant).filter(Restaurant.id == order_data['restaurant_id']).first()
-       if not customer or not restaurant:
-          continue # skip inserting order for customers/restaurants that do not exist
-
-       order = Order(**order_data)
-       session.add(order)
-      session.commit()
-      logger.info('Data loaded to DB via airflow successfully')
-  except FileNotFoundError as e:
-    logger.error(f"File not found : {e}")
-  except Exception as e:
-       logger.error(f"Error when inserting to database : {e}")
-  finally:
-     session.close()
 
 def generate_demand_forecast_data(processed_data_path):
-    session = SessionLocal()
-    orders = session.query(Order).all()
-    order_history = []
-    for order in orders:
-       order_history.append(
-        {"order_id": order.id,
-          "order_time": order.order_time,
-       })
+    history = json.loads(Path(processed_data_path).read_text())
+    data = preprocess_data(history)
+    forecast = predict_demand(train_prophet_model(data), data)
+    output = Path(processed_data_path).with_suffix(".forecast.json")
+    output.write_text(forecast[["ds", "yhat"]].to_json(orient="records", date_format="iso"))
+    return str(output)
 
-    df = preprocess_data(order_history=order_history)
-    if df is not None:
-        model = train_prophet_model(df=df)
-        if model is not None:
-          forecast = predict_demand(model, df)
-          logger.info(f"Forecast : {forecast.tail()}")
-        else:
-          logger.error('Could not train model')
-    else:
-         logger.error('Could not preprocess the data')
-    session.close()
+
+with DAG(dag_id="data_pipeline", start_date=datetime(2023, 1, 1),
+         schedule_interval="@hourly", catchup=False) as dag:
+    ingest = PythonOperator(task_id="ingest_order_data", python_callable=load_from_json_data,
+                            op_args=[RAW_DATA_PATH])
+    process = PythonOperator(task_id="process_order_data", python_callable=process_order_data,
+                             op_args=[RAW_DATA_PATH, PROCESSED_DATA_PATH])
+    forecast = PythonOperator(task_id="generate_demand_forecast", python_callable=generate_demand_forecast_data,
+                              op_args=[PROCESSED_DATA_PATH])
+    ingest >> process >> forecast
