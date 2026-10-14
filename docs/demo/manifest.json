@@ -1,0 +1,101 @@
+{
+  "artifacts": {
+    "region-safe-delivery.gif": {
+      "git_blob": "52233d5213c0a37addcd3b88e8500f169f2c20a9",
+      "probe": {
+        "format": {
+          "duration": "13.700000"
+        },
+        "programs": [],
+        "streams": [
+          {
+            "height": 540,
+            "nb_read_frames": "137",
+            "width": 960
+          }
+        ]
+      },
+      "sha256": "ac69d337332eb40891419ecbd1e9a5c54670a1bfa2d570dc237fc2c0f623a7a7"
+    },
+    "region-safe-delivery.mp4": {
+      "git_blob": "7733d5c17429073fc3276dffc28b397503a28092",
+      "probe": {
+        "format": {
+          "duration": "13.700000"
+        },
+        "programs": [],
+        "streams": [
+          {
+            "height": 720,
+            "nb_read_frames": "411",
+            "width": 1280
+          }
+        ]
+      },
+      "sha256": "7dcee4bacde3e0248edec2ea3755cd0a50b32d3f2b31db568cc5d6438729d27b"
+    },
+    "region-safe-delivery.png": {
+      "git_blob": "dc93773ce29ed73e9e3ca34a9e07ca772b5677ee",
+      "probe": {
+        "height": 720,
+        "width": 1280
+      },
+      "sha256": "ef4a753da9905059ea42afe461c87fc024f8e27af86f6cb85827f09dcbba882b"
+    }
+  },
+  "capture_command": "python scripts/render_demo_media.py",
+  "captured_source_commit": "14be1fd885bc9cd77a52f3bf5e74323171ec41db",
+  "captured_source_tree": "95f0708791361c5dedd2c4c0d53e65aaf89c0904",
+  "observed_output": [
+    "/pricing {\"delivery_fee\": 12.28}",
+    "/orders {\"message\": \"Order created successfully\", \"order_id\": 1}",
+    "/drivers/assign/1 {\"driver_id\": 1, \"driver_region\": \"SF\", \"message\": \"Driver assigned: Alex\"}",
+    "Region guard: closer OAK driver skipped; selected SF driver 1",
+    "/drivers/assign/1 {\"driver_id\": 1, \"driver_region\": \"SF\", \"message\": \"Driver assigned: Alex\"}",
+    "Delivered: {\"order_id\": 1, \"status\": \"delivered\"}",
+    "Restarted API: {\"customer_id\": 1, \"driver_id\": 1, \"order_id\": 1, \"region\": \"SF\", \"restaurant_id\": 1, \"status\": \"delivered\"}",
+    "PASS: price \u2192 create \u2192 region-safe assign \u2192 repeat \u2192 deliver \u2192 restart \u2192 persisted order"
+  ],
+  "scope": "fictional local SQLite and localhost HTTP only; no live dispatch, routing, payment, provider, deployment, or performance claim",
+  "source_files": {
+    ".github/workflows/ci.yml": "beba0d04d4a1c4327700d16bb2b3f5909bfb503a",
+    ".gitignore": "f77f89b10a1a54d4b95f29c557ae7f986eaed093",
+    "README.md": "02e08a1721f9c6ff57dcf93aab22a30fc192be02",
+    "api/__init__.py": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+    "api/api_routes.py": "164598bdbd88c4dc794b1d865bcc458583f24043",
+    "app/__init__.py": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+    "app/customer.py": "3262afff9fcd3f830767c0ae88d712b636376958",
+    "app/driver.py": "e77caf8f7d0e4213c731d738eb50ce905d4966f8",
+    "app/restaurant.py": "355cb054bef0f809b7dc1653c281b58e1e36dc06",
+    "app/seed.py": "3846ae91885f4b1bb024c544bf00b6d3ef46c432",
+    "config/__init__.py": "b9f9e665472885fdfe24457f19f65e580629b9fc",
+    "config/config.py": "3553cfe5a0444e81e2bac352f004f2ff0f8a569a",
+    "dags/data_ingestion.py": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+    "db/__init__.py": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+    "db/connection.py": "d5fd97c024420279b1ce77982aef836225a8008d",
+    "db/models.py": "5ff447cd1f1d7c124db544fdac5d59d5b74c6965",
+    "requirements.txt": "936abdcbecf8184f81b2dc5421457da065aacd0d",
+    "scripts/render_demo_media.py": "0e35e5ba0760300f177560e25a866d1213f585a9",
+    "scripts/smoke_delivery.py": "f8fdbaa454af0ee638832e660051ccf48bac9dba",
+    "scripts/verify_demo_media.py": "7e9c1bbab98ff1649bf03da8765f0e07b03b1ea5",
+    "services/__init__.py": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+    "services/analytics.py": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+    "services/data_pipeline.py": "8112fc88f03d435fba91544983a45c8f2a33e1fb",
+    "services/demand_prediction.py": "f69bbdd7995003f1052096f4b1eef490c2a77837",
+    "services/driver_matching.py": "a7f1a268fa420603f73864466fbac336e2af29f4",
+    "services/logging.py": "d1ba256d506657db05b2d6e6958f314c0bbd804a",
+    "services/messaging.py": "0383270acc8b5a1d387c7cb2b091e9bbae0f7565",
+    "services/metrics.py": "f612b9c11234249c705ca9fc55965822bf8cb3d9",
+    "services/order_management.py": "7468af8cad9211543d3b0b2c06db00164f3e7083",
+    "services/pricing.py": "889ee1147b41d5e59786fe00b33098065b4bde8d",
+    "services/process_data.py": "0fb5a97ed85c4f98d79e1d99dbc8a38cad2ed1b5",
+    "services/regional_partitioning.py": "3eb930232dff8f9c39961727f66860aeea7efba2",
+    "services/routing.py": "cd5cb5f63e5c17448d447ced0c6e3889eac0d0bc",
+    "services/tracing.py": "58e3e751f9df36d15252fb6e4a4981e35aea5013",
+    "services/websocket_server.py": "db838ead8e33547f7ac3ee6ecfc566a7318d4de3",
+    "tests/test_delivery_workflow.py": "3d3fe13aaa8b7925712fda3c15049be1443d3f16",
+    "tests/test_process_data.py": "c9492c8b42278dbc0f26bda703d2cbd36e6e2983",
+    "tests/test_services.py": "1074d72ff71d6361d47412d4c1c0334936892a78"
+  },
+  "workflow_command": "python scripts/smoke_delivery.py"
+}
