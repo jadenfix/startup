@@ -1,6 +1,6 @@
 # Local delivery backend
 
-A runnable food-delivery example backed by SQLite: quote a delivery, create an order, reserve the nearest available driver, complete delivery, and retrieve the persisted result. Concurrent assignments cannot reserve the same driver twice; repeating an assignment returns the existing reservation.
+A runnable food-delivery example backed by SQLite: quote a delivery, create an order, reserve the nearest available driver in the order's region, complete delivery, and retrieve the persisted result. Concurrent assignments cannot reserve the same driver twice; repeating an assignment returns the existing reservation.
 
 ## Run locally
 
@@ -33,7 +33,17 @@ python scripts/smoke_delivery.py
 python -m pytest tests -q
 ```
 
-The smoke demo uses a disposable SQLite database and real HTTP calls. It prices, creates, assigns, repeats the request, completes delivery, then restarts the server and reopens the database to verify persistence. Completing or cancelling an order releases its driver; terminal orders cannot be reassigned or reopened. It requires no external account or API key.
+The smoke demo uses a disposable SQLite database and real HTTP calls. It prices, creates, assigns, repeats the request, completes delivery, then restarts the server and reopens the database to verify persistence. Its fictional seed includes a geographically closer out-of-region driver and proves that regional capacity is not borrowed for the order. Assignment ranks drivers from the order's captured region and restaurant location, so later restaurant edits cannot redirect a pending delivery. Completing or cancelling an order releases its driver; terminal orders cannot be reassigned or reopened. It requires no external account or API key.
+
+![Fictional local region-safe delivery workflow](docs/demo/region-safe-delivery.gif)
+
+[MP4 demo](docs/demo/region-safe-delivery.mp4) · [source and media manifest](docs/demo/manifest.json)
+
+The checked-in capture is rendered from the smoke command's actual output. Its
+manifest pins the captured source commit, tree, every source blob, artifact
+SHA-256 values, and Git blobs. `python scripts/verify_demo_media.py` checks those
+pins, fully decodes both animations, validates their dimensions and duration,
+and requires a clean checkout.
 
 The demand module aggregates hourly order counts (including zero-order hours) and can fit a local Prophet model. JSON processing preserves every exported order and surfaces malformed inputs as failures.
 

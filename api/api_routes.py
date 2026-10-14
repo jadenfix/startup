@@ -4,7 +4,7 @@ from flask import Flask, jsonify, request
 from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.exceptions import BadRequest, UnsupportedMediaType
 from db.connection import SessionLocal, init_db
-from db.models import Order, Restaurant
+from db.models import Order
 from services.driver_matching import assign_driver
 from services.order_management import create_order, update_order_status
 from services.pricing import calculate_delivery_fee
@@ -48,7 +48,7 @@ def create_app(session_factory=SessionLocal):
                 return jsonify(error="Order does not exist"), 404
             return jsonify(order_id=order.id, customer_id=order.customer_id,
                            restaurant_id=order.restaurant_id, driver_id=order.driver_id,
-                           status=order.order_status)
+                           status=order.order_status, region=order.region)
 
     # Retain GET for existing clients; new clients should use POST.
     @app.patch("/orders/<int:order_id>/status")
@@ -68,11 +68,11 @@ def create_app(session_factory=SessionLocal):
             order = session.get(Order, order_id)
             if order is None:
                 return jsonify(error="Order does not exist"), 404
-            restaurant = session.get(Restaurant, order.restaurant_id)
-            driver = assign_driver(session, order_id, (restaurant.lat, restaurant.lng))
+            driver = assign_driver(session, order_id)
             if driver is None:
                 return jsonify(error="No driver available"), 409
-            return jsonify(driver_id=driver.id, message=f"Driver assigned: {driver.name}")
+            return jsonify(driver_id=driver.id, driver_region=driver.region,
+                           message=f"Driver assigned: {driver.name}")
 
     @app.post("/pricing")
     def calculate_price():
