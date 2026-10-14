@@ -15,6 +15,7 @@ jobs:
           python-version: ${{ matrix.python }}
           cache: pip
       - run: pip install -r requirements.txt
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: python -m compileall -q api app config db services scripts tests
       - run: python -m pytest tests -q
       - run: python scripts/smoke_delivery.py
