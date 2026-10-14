@@ -13,6 +13,7 @@ jobs:
           python-version: ${{ matrix.python }}
           cache: pip
       - run: pip install -r requirements.txt
-      - run: python -m compileall -q api app config db services tests
+      - run: python -m compileall -q api app config db services scripts tests
       - run: python -m pytest tests -q
       - run: python scripts/smoke_delivery.py
+      - run: python scripts/verify_demo_media.py

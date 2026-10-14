@@ -24,6 +24,7 @@ def serve(factory):
 
 
 def main():
+    print("FICTIONAL LOCAL DEMO — no live dispatch, routing, payment, or provider calls", flush=True)
     with tempfile.TemporaryDirectory() as directory:
         engine = create_engine(f"sqlite:///{directory}/delivery.db")
         Base.metadata.create_all(engine)
@@ -40,7 +41,10 @@ def main():
             post("/pricing", {"customer_location": [37.77, -122.42], "restaurant_location": [37.80, -122.41]})
             order = post("/orders", {"customer_id": 1, "restaurant_id": 1})
             oid = order["order_id"]
-            assert post(f"/drivers/assign/{oid}")["driver_id"] == 1
+            assigned = post(f"/drivers/assign/{oid}")
+            assert assigned["driver_id"] == 1
+            assert assigned["driver_region"] == "SF"
+            print("Region guard: closer OAK driver skipped; selected SF driver 1", flush=True)
             assert post(f"/drivers/assign/{oid}")["driver_id"] == 1
             delivered = requests.patch(url + f"/orders/{oid}/status", json={"status": "delivered"}, timeout=5)
             delivered.raise_for_status()
@@ -61,7 +65,7 @@ def main():
             assert response.json()["status"] == "delivered"
             assert response.json()["driver_id"] == 1
             print("Restarted API:", json.dumps(response.json()), flush=True)
-            print("PASS: price → create → assign → repeat → deliver → restart → persisted order")
+            print("PASS: price → create → region-safe assign → repeat → deliver → restart → persisted order")
         finally:
             server.shutdown()
             thread.join()

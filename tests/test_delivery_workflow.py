@@ -23,6 +23,8 @@ def store(tmp_path):
             Restaurant(id=1, name="North Beach Kitchen", lat=37.80, lng=-122.41, region="SF"),
             Driver(id=1, name="Near", lat=37.801, lng=-122.410, region="SF"),
             Driver(id=2, name="Far", lat=37.75, lng=-122.45, region="SF"),
+            Driver(id=3, name="Cross-region closer", lat=37.8001, lng=-122.4101,
+                   region="OAK"),
         ])
         session.commit()
     yield factory
@@ -38,6 +40,7 @@ def test_full_http_workflow_persists_assignment_and_repeat_is_idempotent(store):
     response = client.post(f"/drivers/assign/{order_id}")
     assert response.status_code == 200
     assert response.json["driver_id"] == 1
+    assert response.json["driver_region"] == "SF"
     assert client.post(f"/drivers/assign/{order_id}").json["driver_id"] == 1
     reopened = create_app(store).test_client()
     assert reopened.get(f"/orders/{order_id}").json["status"] == "assigned"
@@ -45,6 +48,40 @@ def test_full_http_workflow_persists_assignment_and_repeat_is_idempotent(store):
         assert session.get(Order, order_id).driver_id == 1
         assert session.get(Driver, 1).is_available is False
         assert session.get(Driver, 2).is_available is True
+        assert session.get(Driver, 3).is_available is True
+
+
+def test_assignment_uses_immutable_order_region_and_restaurant_location(store):
+    client = create_app(store).test_client()
+    oid = client.post("/orders", json={"customer_id": 1, "restaurant_id": 1}).json["order_id"]
+    with store() as session:
+        restaurant = session.get(Restaurant, 1)
+        restaurant.region = "OAK"
+        restaurant.lat = 37.75
+        restaurant.lng = -122.45
+        session.commit()
+
+    response = client.post(f"/drivers/assign/{oid}")
+    assert response.status_code == 200
+    assert response.json["driver_id"] == 1
+    assert response.json["driver_region"] == "SF"
+    assert client.get(f"/orders/{oid}").json["region"] == "SF"
+    with store() as session:
+        assert session.get(Driver, 3).is_available is True
+
+
+def test_out_of_region_capacity_is_not_used(store):
+    with store() as session:
+        session.get(Driver, 1).is_available = False
+        session.get(Driver, 2).is_available = False
+        session.commit()
+    client = create_app(store).test_client()
+    oid = client.post("/orders", json={"customer_id": 1, "restaurant_id": 1}).json["order_id"]
+    response = client.post(f"/drivers/assign/{oid}")
+    assert response.status_code == 409
+    assert response.json == {"error": "No driver available"}
+    with store() as session:
+        assert session.get(Driver, 3).is_available is True
 
 
 @pytest.mark.parametrize("payload", [None, [], {}, {"customer_id": True, "restaurant_id": 1},
